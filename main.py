@@ -1,12 +1,11 @@
 from os import path
-import json, os
+import json, os, re
 from typing import Any
 import requests
 from bs4 import BeautifulSoup
-import xlrd
-import pandas as pd
 from pandas import DataFrame
 
+import re, string
 
 parse_html = lambda x: BeautifulSoup(x.strip(), "html.parser")
 
@@ -126,6 +125,7 @@ class Company:
         an = filing["accessionNumber"].replace("-", "")
         slug = filing["primaryDocument"]
         url = path.join("https://www.sec.gov/Archives/edgar/data", cik, an, slug)
+        print(f"getting form: [{url}]")
         return fetch.text(url)
 
 
@@ -174,9 +174,12 @@ def get_consolidated_balance_sheets(df: DataFrame):
 
 
 class Fin:
+    NON_ALPHA = re.compile("[\W_]+")
     C_STATEMENTS_OF_OPS = "consolidatedstatementsofoperations"
     C_STATEMENTS_OF_COMPREHENSIVE_INCOME = "consolidatedstatementsofcomprehensiveincome"
-    normalize = lambda v: v.replace(" ", "").lower()
+    C_BALANCE_SHEETS = "consolidatedbalancesheets"
+    C_STATEMENTS_OF_STOCKHOLDERS_EQUITY = "consolidatedstatementsofstockholdersequity"
+    normalize = lambda v: Fin.NON_ALPHA.sub("", v).lower()
     matches = lambda q: lambda v: Fin.normalize(v) == q
 
 
@@ -227,7 +230,32 @@ def remove_blank_ranks(data: list[list[str]]):
     return [[data[r][c] for c in C if c not in cols_to_rm] for r in R]
 
 
+# split a table by dominating rows (if one row is filled with the same content)
+def split_subtables(tbl: list[list[str]]) -> list[list[str]]:
+    row_num = len(tbl)
+    if row_num == 0:
+        return tbl
+    col_num = len(tbl[0])
+    if col_num == 0:
+        return tbl
+    R, C = range(row_num), range(col_num)
+    result = {}
+    buf = []
+    name = "<start>"
+    for r in R:
+        if all([tbl[r][c] == tbl[r][0] for c in C]):
+            result[name] = buf
+            buf = []
+            name = tbl[r][0]
+        else:
+            buf.append(tbl[r])
+    result[name] = buf
+    return result
+
+
 def read_table(tbl: BeautifulSoup) -> list[list[str]]:
+    if not tbl:
+        return None
     dim = dimensions(tbl)
     data = init_empty_data(*dim)
 
@@ -242,18 +270,34 @@ def read_table(tbl: BeautifulSoup) -> list[list[str]]:
                 data[r][j] = cols[c].text.strip()
                 j += 1
 
-    return remove_blank_ranks(data)
+    data = remove_blank_ranks(data)
+    # data = split_subtables(data) # optional. WARNING: will change data structure
+    return data
+
+
+def soup_find_table(soup: BeautifulSoup, query: str) -> BeautifulSoup:
+    titles = [x for x in soup.find_all(string=Fin.matches(query))]
+    if not titles:
+        return None
+    # use the last instance of it appearing alone because the first few might
+    # be part of the table of contents
+    #
+    # (snagged on AMZN's 10-K)
+    i = -1 if len(titles) > 0 else 0
+    return titles[i].find_next("table")
 
 
 AAPL = Company(get_cik("APPLE COMPUTER INC"))
 TSLA = Company(get_cik("TESLA, INC."))
 NVDA = Company(get_cik("NVIDIA CORP"))
 AMZN = Company(get_cik("AMAZON COM INC"))
-COY = AAPL
+BB = Company(get_cik("BLACKBERRY LTD"))
+COY = BB
 filings = COY.find_filings(form="10-K")
+print([v["filingDate"] for v in filings])
 most_recent_10K = filings[0]
 soup = parse_html(COY.fetch_form(most_recent_10K))
-tbl_title = soup.find(string=Fin.matches(Fin.C_STATEMENTS_OF_OPS))
-tbl_soup = tbl_title.find_next("table")
+tbl_soup = soup_find_table(soup, Fin.C_STATEMENTS_OF_STOCKHOLDERS_EQUITY)
+# tbl_soup = soup_find_table(soup, Fin.C_STATEMENTS_OF_OPS)
 tbl = read_table(tbl_soup)
 print(tbl)
