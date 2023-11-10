@@ -3,6 +3,7 @@ import json, os
 from typing import Any
 import requests
 from bs4 import BeautifulSoup
+import xlrd
 import pandas as pd
 from pandas import DataFrame
 
@@ -55,28 +56,6 @@ class fetch:
             f.write(response.text)
 
         return response.text if plain_text else response.json()
-
-    def dataframe(url) -> DataFrame:
-        cache_filepath = fetch.__prep__(url)
-
-        if not path.isfile(cache_filepath):
-            print("[INFO] making fresh fetch!")
-            with requests.get(url, stream=True, headers=HEADERS) as r:
-                r.raise_for_status()
-                with open(cache_filepath, "wb") as f:
-                    for chunk in r.iter_content(chunk_size=8192):
-                        f.write(chunk)
-
-        print("reading filepath", cache_filepath)
-
-        if cache_filepath.endswith(".xls"):
-            try:
-                return pd.read_excel(cache_filepath, sheet_name=None, engine="xlrd")
-            except:
-                return None
-        else:
-            return pd.read_excel(cache_filepath, sheet_name=None)
-
 
     def text(url) -> str:
         return fetch.__get__(url, plain_text=True)
@@ -148,30 +127,6 @@ class Company:
         url = path.join("https://www.sec.gov/Archives/edgar/data", cik, an, slug)
         return fetch.text(url)
 
-    def fetch_financial_report(self, filing: dict) -> DataFrame:
-        cik = self.cik
-        an = filing["accessionNumber"].replace("-", "")
-        url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{an}/"
-        basename = get_financial_report_url(cik, an)
-        if basename is None:return None
-        return fetch.dataframe(url + basename)
-
-
-def get_financial_report_url(cik: str, accession_number: str):
-    raw_html = requests.get(
-        f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}",
-        headers=HEADERS,
-    ).text
-    soup = parse_html(raw_html)
-    fr = lambda l: "financial_report" in l.text.strip().lower()
-    links = [
-        v.text
-        for v in soup.find_all("a")
-        if v["href"].startswith("/Archives/edgar/data/") and fr(v)
-    ]
-    if len(links) > 0:
-        return links[0]
-
 
 def get_tbl_title(soup: BeautifulSoup) -> str:
     while True:
@@ -221,13 +176,7 @@ AAPL = Company(get_cik("APPLE COMPUTER INC"))
 TSLA = Company(get_cik("TESLA, INC."))
 NVDA = Company(get_cik("NVIDIA CORP"))
 AMZN = Company(get_cik("AMAZON COM INC"))
-COY = NVDA
-form10Ks = COY.get_all_filings(form="10-K")
-print([v["accessionNumber"] for v in form10Ks])
-# filings = COY.find_filings(form="10-K")
-
-for form10K in form10Ks:
-    df = COY.fetch_financial_report(form10K)
-    if df is None:
-        continue
-    print(get_consolidated_balance_sheets(df))
+COY = AAPL
+filings = COY.find_filings(form="10-K")
+filings.sort(key=lambda v: v["reportDate"], reverse=True)
+[print(v["reportDate"]) for v in filings]
