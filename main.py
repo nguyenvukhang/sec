@@ -179,4 +179,6 @@ NVDA = Company(get_cik("NVIDIA CORP"))
 AMZN = Company(get_cik("AMAZON COM INC"))
 COY = AAPL
 filings = COY.find_filings(form="10-K")
-[print(v["reportDate"]) for v in filings]
+most_recent_10K = filings[0]
+with open("aapl-10k-recent.htm", "w") as f:
+    f.write(COY.fetch_form(most_recent_10K))
