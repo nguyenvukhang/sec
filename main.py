@@ -173,29 +173,11 @@ def get_consolidated_balance_sheets(df: DataFrame):
         return df[k]
 
 
-AAPL = Company(get_cik("APPLE COMPUTER INC"))
-TSLA = Company(get_cik("TESLA, INC."))
-NVDA = Company(get_cik("NVIDIA CORP"))
-AMZN = Company(get_cik("AMAZON COM INC"))
-COY = AAPL
-filings = COY.find_filings(form="10-K")
-most_recent_10K = filings[0]
-
-# with open("aapl-10k-recent.htm", "w") as f:
-#     f.write(COY.fetch_form(most_recent_10K))
-
-soup = parse_html(COY.fetch_form(most_recent_10K))
-
-
 class Fin:
     C_STATEMENTS_OF_OPS = "consolidatedstatementsofoperations"
     C_STATEMENTS_OF_COMPREHENSIVE_INCOME = "consolidatedstatementsofcomprehensiveincome"
     normalize = lambda v: v.replace(" ", "").lower()
     matches = lambda q: lambda v: Fin.normalize(v) == q
-
-
-ptr = soup.find(string=Fin.matches(Fin.C_STATEMENTS_OF_COMPREHENSIVE_INCOME))
-tbl = ptr.find_next("table")
 
 
 # (<# rows>, <# cols>)
@@ -211,21 +193,7 @@ def init_empty_data(rows: int, cols: int) -> list[list[str]]:
     return [["" for _ in range(cols)] for _ in range(rows)]
 
 
-dim = dimensions(tbl)
-data = init_empty_data(*dim)
-
-rows = [r for r in tbl.find_all("tr")]
-for r in range(len(rows)):
-    cols = [c for c in rows[r].find_all(recursive=False)]
-    j = 0
-    for c in range(len(cols)):
-        # print(r, c)
-        colspan = int(cols[c].get("colspan", "1"))
-        for _ in range(colspan):
-            data[r][j] = cols[c].text.strip()
-            j += 1
-
-
+# remove blank rows and useless columns
 def remove_blank_ranks(data: list[list[str]]):
     blank_r = lambda r: all([r == "" for r in r])
     data = [r for r in data if not blank_r(r)]
@@ -256,8 +224,36 @@ def remove_blank_ranks(data: list[list[str]]):
                 break
         if all_useless:
             cols_to_rm.append(c)
-    cleaned = [[data[r][c] for c in C if c not in cols_to_rm] for r in R]
-    print(cleaned)
+    return [[data[r][c] for c in C if c not in cols_to_rm] for r in R]
 
 
-data = remove_blank_ranks(data)
+def read_table(tbl: BeautifulSoup) -> list[list[str]]:
+    dim = dimensions(tbl)
+    data = init_empty_data(*dim)
+
+    rows = [r for r in tbl.find_all("tr")]
+    for r in range(len(rows)):
+        cols = [c for c in rows[r].find_all(recursive=False)]
+        j = 0
+        for c in range(len(cols)):
+            # print(r, c)
+            colspan = int(cols[c].get("colspan", "1"))
+            for _ in range(colspan):
+                data[r][j] = cols[c].text.strip()
+                j += 1
+
+    return remove_blank_ranks(data)
+
+
+AAPL = Company(get_cik("APPLE COMPUTER INC"))
+TSLA = Company(get_cik("TESLA, INC."))
+NVDA = Company(get_cik("NVIDIA CORP"))
+AMZN = Company(get_cik("AMAZON COM INC"))
+COY = AAPL
+filings = COY.find_filings(form="10-K")
+most_recent_10K = filings[0]
+soup = parse_html(COY.fetch_form(most_recent_10K))
+tbl_title = soup.find(string=Fin.matches(Fin.C_STATEMENTS_OF_OPS))
+tbl_soup = tbl_title.find_next("table")
+tbl = read_table(tbl_soup)
+print(tbl)
