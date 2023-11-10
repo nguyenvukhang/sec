@@ -110,17 +110,16 @@ class Company:
         lofilings = [self.get_filings(f) for f in lofilings]
         filings = []
         [filings.extend(f) for f in lofilings]
+        filings.extend(self.get_filings(fh['filings']['recent']))
         return filter_filings(filings, **kwargs)
 
     def find_filings(self, **kwargs):
-        print(kwargs)
-        rf = self.get_recent_filings()
+        rf = self.get_all_filings()
         if len(kwargs.keys()) == 0:
             return rf
         return [f for f in rf if all([f[k] == v for k, v in kwargs.items()])]
 
     def fetch_form(self, filing: dict):
-        print(filing)
         cik = self.cik
         an = filing["accessionNumber"].replace("-", "")
         slug = filing["primaryDocument"]
