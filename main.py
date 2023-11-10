@@ -214,7 +214,7 @@ def init_empty_data(rows: int, cols: int) -> list[list[str]]:
 dim = dimensions(tbl)
 data = init_empty_data(*dim)
 
-rows = [r for r in tbl.find_all("tr")];
+rows = [r for r in tbl.find_all("tr")]
 for r in range(len(rows)):
     cols = [c for c in rows[r].find_all(recursive=False)]
     j = 0
@@ -224,4 +224,40 @@ for r in range(len(rows)):
         for _ in range(colspan):
             data[r][j] = cols[c].text.strip()
             j += 1
-print(data)
+
+
+def remove_blank_ranks(data: list[list[str]]):
+    blank_r = lambda r: all([r == "" for r in r])
+    data = [r for r in data if not blank_r(r)]
+
+    if len(data) == 0:
+        return data
+
+    col_num = len(data[0])
+    row_num = len(data)
+    R, C = range(row_num), range(col_num)
+
+    cols_to_rm = []
+    for c in C:
+        # if it's either
+        #     1. a blank, or
+        #     2. the cell on the right has the same content
+        # then it's considered useless
+        #
+        # if whole col is useless, remove it
+        all_useless = True
+        for r in R:
+            text = data[r][c]
+            useless = text == ""
+            if c + 1 < len(data[r]):
+                useless |= data[r][c + 1] == text
+            if not useless:
+                all_useless = False
+                break
+        if all_useless:
+            cols_to_rm.append(c)
+    cleaned = [[data[r][c] for c in C if c not in cols_to_rm] for r in R]
+    print(cleaned)
+
+
+data = remove_blank_ranks(data)
