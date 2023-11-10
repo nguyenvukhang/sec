@@ -70,9 +70,13 @@ class fetch:
         print("reading filepath", cache_filepath)
 
         if cache_filepath.endswith(".xls"):
-            return pd.read_excel(cache_filepath, sheet_name=None, engine="xlrd")
+            try:
+                return pd.read_excel(cache_filepath, sheet_name=None, engine="xlrd")
+            except:
+                return None
+        else:
+            return pd.read_excel(cache_filepath, sheet_name=None)
 
-        return pd.read_excel(cache_filepath, sheet_name=None)
 
     def text(url) -> str:
         return fetch.__get__(url, plain_text=True)
@@ -148,8 +152,9 @@ class Company:
         cik = self.cik
         an = filing["accessionNumber"].replace("-", "")
         url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{an}/"
-        url += get_financial_report_url(cik, an)
-        return fetch.dataframe(url)
+        basename = get_financial_report_url(cik, an)
+        if basename is None:return None
+        return fetch.dataframe(url + basename)
 
 
 def get_financial_report_url(cik: str, accession_number: str):
@@ -223,4 +228,6 @@ print([v["accessionNumber"] for v in form10Ks])
 
 for form10K in form10Ks:
     df = COY.fetch_financial_report(form10K)
+    if df is None:
+        continue
     print(get_consolidated_balance_sheets(df))
