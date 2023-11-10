@@ -69,6 +69,9 @@ class fetch:
 
         print("reading filepath", cache_filepath)
 
+        if cache_filepath.endswith(".xls"):
+            return pd.read_excel(cache_filepath, sheet_name=None, engine="xlrd")
+
         return pd.read_excel(cache_filepath, sheet_name=None)
 
     def text(url) -> str:
@@ -93,6 +96,10 @@ def get_cik(company_name: str):
     return mem["cik"][company_name]
 
 
+def filter_filings(rf, **kwargs):
+    return [f for f in rf if all([f[k] == v for k, v in kwargs.items()])]
+
+
 class Company:
     def __init__(self, cik: str) -> None:
         self.cik = cik
@@ -101,13 +108,26 @@ class Company:
         url = f"https://data.sec.gov/submissions/CIK{self.cik}.json"
         return fetch.json(url)
 
-    def get_recent_filings(self, n=0) -> Any:
+    def get_filings(self, filings, n=0) -> list[Any]:
+        keys = [x for x in filings.keys()]
+        m = len(filings[keys[0]])
+        n = m if n == 0 else min(n, m)
+        return [{k: filings[k][i] for k in keys} for i in range(n)]
+
+    def get_recent_filings(self, n=0) -> list[Any]:
         fh = self.get_filing_history()
         recents = fh["filings"]["recent"]
-        n = len(recents["accessionNumber"]) if n == 0 else n
-        print("USING", n)
-        keys = recents.keys()
-        return [{k: recents[k][i] for k in keys} for i in range(n)]
+        return self.get_filings(recents, n)
+
+    def get_all_filings(self, **kwargs) -> list[Any]:
+        fh = self.get_filing_history()
+        hist = fh["filings"]["files"]
+        PRE = "https://data.sec.gov/submissions/"
+        lofilings = [fetch.json(PRE + v["name"]) for v in hist]
+        lofilings = [self.get_filings(f) for f in lofilings]
+        filings = []
+        [filings.extend(f) for f in lofilings]
+        return filter_filings(filings, **kwargs)
 
     def find_filings(self, **kwargs):
         print(kwargs)
@@ -127,10 +147,25 @@ class Company:
     def fetch_financial_report(self, filing: dict) -> DataFrame:
         cik = self.cik
         an = filing["accessionNumber"].replace("-", "")
-        url = path.join(
-            "https://www.sec.gov/Archives/edgar/data", cik, an, "Financial_Report.xlsx"
-        )
+        url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{an}/"
+        url += get_financial_report_url(cik, an)
         return fetch.dataframe(url)
+
+
+def get_financial_report_url(cik: str, accession_number: str):
+    raw_html = requests.get(
+        f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}",
+        headers=HEADERS,
+    ).text
+    soup = parse_html(raw_html)
+    fr = lambda l: "financial_report" in l.text.strip().lower()
+    links = [
+        v.text
+        for v in soup.find_all("a")
+        if v["href"].startswith("/Archives/edgar/data/") and fr(v)
+    ]
+    if len(links) > 0:
+        return links[0]
 
 
 def get_tbl_title(soup: BeautifulSoup) -> str:
@@ -167,24 +202,25 @@ def extract_tbls(soup: BeautifulSoup) -> dict[str, BeautifulSoup]:
     return ht
 
 
+def get_consolidated_balance_sheets(df: DataFrame):
+    keys = df.keys()
+    k = "Consolidated Balance Sheets"
+    if k in keys:
+        return df[k]
+    k = "CONSOLIDATED BALANCE SHEETS"
+    if k in keys:
+        return df[k]
+
+
 AAPL = Company(get_cik("APPLE COMPUTER INC"))
 TSLA = Company(get_cik("TESLA, INC."))
 NVDA = Company(get_cik("NVIDIA CORP"))
 AMZN = Company(get_cik("AMAZON COM INC"))
 COY = NVDA
-filings = COY.find_filings(form="10-K")
-df = COY.fetch_financial_report(filings[0])
+form10Ks = COY.get_all_filings(form="10-K")
+print([v["accessionNumber"] for v in form10Ks])
+# filings = COY.find_filings(form="10-K")
 
-def get_consolidated_balance_sheets(df: DataFrame):
-    keys = df.keys()
-    k ="Consolidated Balance Sheets"  
-    if k in keys:
-        return df[k]
-    k = "CONSOLIDATED BALANCE SHEETS" 
-    if k in keys:
-        return df[k]
-
-consolidated_balance_sheets = get_consolidated_balance_sheets(df)
-
-print(df.keys())
-print(consolidated_balance_sheets)
+for form10K in form10Ks:
+    df = COY.fetch_financial_report(form10K)
+    print(get_consolidated_balance_sheets(df))
