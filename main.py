@@ -195,6 +195,33 @@ class Fin:
 
 
 ptr = soup.find(string=Fin.matches(Fin.C_STATEMENTS_OF_COMPREHENSIVE_INCOME))
-print(ptr.find_next("table"))
+tbl = ptr.find_next("table")
 
-print(ptr)
+
+# (<# rows>, <# cols>)
+def dimensions(tbl: BeautifulSoup) -> tuple[int, int]:
+    rows = tbl.find_all("tr")
+    for row in rows:
+        cols = row.find_all(recursive=False)
+        return (len(rows), len(cols))
+    return (len(rows), 0)
+
+
+def init_empty_data(rows: int, cols: int) -> list[list[str]]:
+    return [["" for _ in range(cols)] for _ in range(rows)]
+
+
+dim = dimensions(tbl)
+data = init_empty_data(*dim)
+
+rows = [r for r in tbl.find_all("tr")];
+for r in range(len(rows)):
+    cols = [c for c in rows[r].find_all(recursive=False)]
+    j = 0
+    for c in range(len(cols)):
+        # print(r, c)
+        colspan = int(cols[c].get("colspan", "1"))
+        for _ in range(colspan):
+            data[r][j] = cols[c].text.strip()
+            j += 1
+print(data)
