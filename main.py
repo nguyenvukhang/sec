@@ -180,5 +180,21 @@ AMZN = Company(get_cik("AMAZON COM INC"))
 COY = AAPL
 filings = COY.find_filings(form="10-K")
 most_recent_10K = filings[0]
-with open("aapl-10k-recent.htm", "w") as f:
-    f.write(COY.fetch_form(most_recent_10K))
+
+# with open("aapl-10k-recent.htm", "w") as f:
+#     f.write(COY.fetch_form(most_recent_10K))
+
+soup = parse_html(COY.fetch_form(most_recent_10K))
+
+
+class Fin:
+    C_STATEMENTS_OF_OPS = "consolidatedstatementsofoperations"
+    C_STATEMENTS_OF_COMPREHENSIVE_INCOME = "consolidatedstatementsofcomprehensiveincome"
+    normalize = lambda v: v.replace(" ", "").lower()
+    matches = lambda q: lambda v: Fin.normalize(v) == q
+
+
+ptr = soup.find(string=Fin.matches(Fin.C_STATEMENTS_OF_COMPREHENSIVE_INCOME))
+print(ptr.find_next("table"))
+
+print(ptr)
