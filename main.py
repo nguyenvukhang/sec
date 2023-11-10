@@ -110,14 +110,16 @@ class Company:
         lofilings = [self.get_filings(f) for f in lofilings]
         filings = []
         [filings.extend(f) for f in lofilings]
-        filings.extend(self.get_filings(fh['filings']['recent']))
+        filings.extend(self.get_filings(fh["filings"]["recent"]))
         return filter_filings(filings, **kwargs)
 
     def find_filings(self, **kwargs):
-        rf = self.get_all_filings()
+        f = self.get_all_filings()
         if len(kwargs.keys()) == 0:
-            return rf
-        return [f for f in rf if all([f[k] == v for k, v in kwargs.items()])]
+            return f
+        f = [f for f in f if all([f[k] == v for k, v in kwargs.items()])]
+        f.sort(key=lambda v: v["reportDate"], reverse=True)
+        return f
 
     def fetch_form(self, filing: dict):
         cik = self.cik
@@ -177,5 +179,4 @@ NVDA = Company(get_cik("NVIDIA CORP"))
 AMZN = Company(get_cik("AMAZON COM INC"))
 COY = AAPL
 filings = COY.find_filings(form="10-K")
-filings.sort(key=lambda v: v["reportDate"], reverse=True)
 [print(v["reportDate"]) for v in filings]
