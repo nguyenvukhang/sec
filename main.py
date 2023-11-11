@@ -4,8 +4,7 @@ from typing import Any
 import requests
 from bs4 import BeautifulSoup
 from pandas import DataFrame
-
-import re, string
+import re
 
 parse_html = lambda x: BeautifulSoup(x.strip(), "html.parser")
 
@@ -42,7 +41,7 @@ class fetch:
         cache_filepath = fetch.__prep__(url)
 
         if path.isfile(cache_filepath):
-            with open(cache_filepath, "r") as f:
+            with open(cache_filepath, "r", encoding="utf-8") as f:
                 return f.read() if plain_text else json.load(f)
 
         print("[INFO] making fresh fetch!")
@@ -51,7 +50,7 @@ class fetch:
         response = requests.get(url, headers=HEADERS)
 
         # cache the response in text form
-        with open(cache_filepath, "w") as f:
+        with open(cache_filepath, "w", encoding="utf-8") as f:
             f.write(response.text)
 
         return response.text if plain_text else response.json()
