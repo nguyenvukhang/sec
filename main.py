@@ -1,4 +1,5 @@
 from os import path
+import urllib
 import json, os, re
 from typing import Any
 import requests
@@ -123,8 +124,10 @@ class Company:
         cik = self.cik
         an = filing["accessionNumber"].replace("-", "")
         slug = filing["primaryDocument"]
-        url = path.join("https://www.sec.gov/Archives/edgar/data", cik, an, slug)
-        print(f"getting form: [{url}]")
+        # ugly. FIXME
+        url = urllib.parse.urljoin("https://www.sec.gov/Archives/edgar/data/", cik) + '/'
+        url = urllib.parse.urljoin(url, an) + '/'
+        url = urllib.parse.urljoin(url, slug)
         return fetch.text(url)
 
 
