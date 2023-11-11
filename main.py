@@ -275,7 +275,7 @@ def read_table(tbl: BeautifulSoup) -> list[list[str]]:
     return data
 
 
-def soup_find_table(soup: BeautifulSoup, query: str) -> BeautifulSoup:
+def soup_find_table(soup: BeautifulSoup, query: str, index=-1) -> BeautifulSoup:
     titles = [x for x in soup.find_all(string=Fin.matches(query))]
     if not titles:
         return None
@@ -283,8 +283,7 @@ def soup_find_table(soup: BeautifulSoup, query: str) -> BeautifulSoup:
     # be part of the table of contents
     #
     # (snagged on AMZN's 10-K)
-    i = -1 if len(titles) > 0 else 0
-    return titles[i].find_next("table")
+    return titles[index].find_next("table")
 
 
 AAPL = Company(get_cik("APPLE COMPUTER INC"))
@@ -292,12 +291,12 @@ TSLA = Company(get_cik("TESLA, INC."))
 NVDA = Company(get_cik("NVIDIA CORP"))
 AMZN = Company(get_cik("AMAZON COM INC"))
 BB = Company(get_cik("BLACKBERRY LTD"))
-COY = BB
+COY = NVDA
 filings = COY.find_filings(form="10-K")
 print([v["filingDate"] for v in filings])
 most_recent_10K = filings[0]
 soup = parse_html(COY.fetch_form(most_recent_10K))
-tbl_soup = soup_find_table(soup, Fin.C_STATEMENTS_OF_STOCKHOLDERS_EQUITY)
+tbl_soup = soup_find_table(soup, Fin.C_BALANCE_SHEETS)
 # tbl_soup = soup_find_table(soup, Fin.C_STATEMENTS_OF_OPS)
 tbl = read_table(tbl_soup)
 print(tbl)
